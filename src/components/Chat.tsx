@@ -5,28 +5,109 @@ import type { User } from '../lib/supabase';
 import type { ItineraryData } from './Itinerary';
 
 function parseSimpleItinerary(text: string): ItineraryData {
-  const lines = text.split('\n').filter(line => line.trim() !== '');
-  const description = lines.shift() || '';
+  const lines = text.split('\n').map(line => line.trim()).filter(line => line !== '');
   
-  const days = lines
-    .map((line) => {
-      const dayMatch = line.match(/^Day (\d+):/);
-      if (dayMatch) {
-        const activityText = line.substring(dayMatch[0].length).trim();
-        return {
-          day: parseInt(dayMatch[1]),
-          title: `Day ${dayMatch[1]}`, 
-          activities: [{ activity: activityText }]
-        };
+  // Extract title (first line before any "Day X:" pattern)
+  let title = 'Your Itinerary';
+  let description = '';
+  let startIndex = 0;
+  
+  // Look for title in the first few lines
+  if (lines.length > 0 && !lines[0].match(/^Day \d+:/)) {
+    title = lines[0].replace(/[:\n]/g, '').trim();
+    startIndex = 1;
+  }
+  
+  // Find where day sections start and end
+  const dayIndices = [];
+  for (let i = startIndex; i < lines.length; i++) {
+    if (lines[i].match(/^Day \d+:/)) {
+      dayIndices.push(i);
+    }
+  }
+  
+  // Extract description (lines before first day or between title and first day)
+  if (dayIndices.length > 0) {
+    const descLines = lines.slice(startIndex, dayIndices[0]).filter(line => 
+      !line.match(/^Day \d+:/) && 
+      !line.match(/^Budget/) && 
+      !line.match(/^Does this/)
+    );
+    description = descLines.join(' ').trim();
+  }
+  
+  const days = [];
+  
+  // Process each day section
+  for (let i = 0; i < dayIndices.length; i++) {
+    const dayLineIndex = dayIndices[i];
+    const dayLine = lines[dayLineIndex];
+    const dayMatch = dayLine.match(/^Day (\d+):/);
+    
+    if (dayMatch) {
+      const dayNumber = parseInt(dayMatch[1]);
+      const nextDayIndex = i + 1 < dayIndices.length ? dayIndices[i + 1] : lines.length;
+      
+      // Extract activities for this day (lines between current day and next day)
+      const dayActivityLines = lines.slice(dayLineIndex + 1, nextDayIndex);
+      const activities = [];
+      
+      for (const activityLine of dayActivityLines) {
+        // Stop if we hit budget summary or other non-activity content
+        if (activityLine.match(/^Budget|^Does this|^Approximate|^Total/)) {
+          break;
+        }
+        
+        // Parse activity lines that start with "- Time:"
+        const activityMatch = activityLine.match(/^-\s*([^:]+):\s*(.+)$/);
+        if (activityMatch) {
+          const [, time, activity] = activityMatch;
+          activities.push({
+            time: time.trim(),
+            activity: activity.trim(),
+            type: 'activity'
+          });
+        } else if (activityLine.startsWith('-') && activityLine.length > 2) {
+          // Handle activities without specific time format
+          const activity = activityLine.substring(1).trim();
+          if (activity) {
+            activities.push({
+              activity: activity,
+              type: 'activity'
+            });
+          }
+        }
       }
-      return null;
-    })
-    .filter((day): day is NonNullable<typeof day> => day !== null);
+      
+      if (activities.length > 0) {
+        days.push({
+          day: dayNumber,
+          title: `Day ${dayNumber}`,
+          activities: activities
+        });
+      }
+    }
+  }
+  
+  // Extract budget/summary information
+  let summary;
+  const budgetLines = lines.filter(line => 
+    line.match(/^Budget|^Approximate|^Total/) && 
+    !line.match(/^Does this/)
+  );
+  
+  if (budgetLines.length > 0) {
+    summary = {
+      totalCost: budgetLines.join(' ').replace(/Budget Summary:\s*|Approximate costs?\s*/i, '').trim(),
+      totalDays: days.length
+    };
+  }
 
   return {
-    title: 'Your Itinerary',
+    title: title,
     description: description,
-    days: days
+    days: days,
+    summary: summary
   };
 }
 
