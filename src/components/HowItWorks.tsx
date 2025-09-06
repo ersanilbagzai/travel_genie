@@ -1,4 +1,5 @@
 import React from 'react';
+import howItWorksImage from '../assets/images/how_it_works.png';
 
 const HowItWorks: React.FC = () => {
   return (
