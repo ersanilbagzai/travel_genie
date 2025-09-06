@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, MapPin, Plane, MessageCircle } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import type { User } from '../lib/supabase';
 
 interface Message {
@@ -26,8 +27,41 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [apiUrl, setApiUrl] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch API URL from system configuration
+  useEffect(() => {
+    const fetchApiUrl = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('system_conf')
+          .select('value')
+          .eq('key', 'TRAVEL_APP_AI_AGENT_API_URL')
+          .single();
+
+        if (error) {
+          console.error('Error fetching API URL:', error);
+          setApiError('Failed to load AI configuration');
+          return;
+        }
+
+        if (data?.value) {
+          setApiUrl(data.value);
+          setApiError(null);
+        } else {
+          setApiError('AI agent API URL not configured');
+        }
+      } catch (error) {
+        console.error('Error fetching API URL:', error);
+        setApiError('Failed to load AI configuration');
+      }
+    };
+
+    fetchApiUrl();
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -37,167 +71,74 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
     scrollToBottom();
   }, [messages]);
 
-  const generateAIResponse = (userMessage: string): string => {
-    const message = userMessage.toLowerCase();
-    
-    if (message.includes('japan') || message.includes('tokyo') || message.includes('kyoto')) {
-      return `🏯 Japan sounds incredible! Here's a tailored 7-day itinerary:
-
-**Days 1-3: Tokyo**
-• Visit Senso-ji Temple and Asakusa district
-• Experience the bustling Shibuya crossing
-• Explore traditional markets in Tsukiji
-• Enjoy authentic ramen in Golden Gai
-
-**Days 4-5: Kyoto** 
-• Tour the famous Fushimi Inari shrine
-• Walk through the bamboo groves of Arashiyama
-• Experience a traditional tea ceremony
-• Stay in a ryokan for authentic culture
-
-**Days 6-7: Mount Fuji & Hakone**
-• Take the scenic train to Hakone
-• Relax in natural hot springs (onsen)
-• Capture stunning views of Mount Fuji
-
-Would you like me to suggest specific restaurants, hotels, or activities for any of these locations?`;
+  const callAIApi = async (userMessage: string): Promise<string> => {
+    if (!apiUrl) {
+      throw new Error('AI agent API URL not configured. Please check system configuration.');
     }
-    
-    if (message.includes('europe') || message.includes('paris') || message.includes('rome') || message.includes('london')) {
-      return `🏰 A European adventure awaits! Here's a classic 10-day grand tour:
 
-**Days 1-3: Paris, France**
-• Explore the Louvre and Eiffel Tower
-• Stroll along the Champs-Élysées
-• Day trip to Versailles Palace
-• Seine river cruise at sunset
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: userMessage
+        })
+      });
 
-**Days 4-6: Rome, Italy**
-• Discover the Colosseum and Roman Forum
-• Throw a coin in the Trevi Fountain
-• Explore Vatican City and Sistine Chapel
-• Enjoy authentic pasta in Trastevere
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}: ${response.statusText}`);
+      }
 
-**Days 7-10: London, England**
-• Tour the Tower of London and Big Ben
-• Experience the British Museum
-• Take afternoon tea in Covent Garden
-• Day trip to Windsor Castle
-
-Each city offers unique experiences - would you prefer art and culture, culinary adventures, or historical exploration?`;
-    }
-    
-    if (message.includes('beach') || message.includes('tropical') || message.includes('island') || message.includes('maldives') || message.includes('caribbean')) {
-      return `🏖️ Paradise found! Here are some breathtaking tropical destinations:
-
-**Maldives - Ultimate Luxury**
-• Overwater bungalows with glass floors
-• Private beach dinners under the stars
-• Snorkeling with manta rays and whale sharks
-• Sunset dolphin cruises
-
-**Caribbean Islands**
-• Barbados: Pink sand beaches and rum tours
-• St. Lucia: Dramatic pitons and rainforest hikes
-• Turks & Caicos: World-class diving and conch bars
-
-**Activities I recommend:**
-• Scuba diving in coral gardens
-• Catamaran sailing at golden hour
-• Beach yoga and spa treatments
-• Local cooking classes with fresh seafood
-
-What type of water activities interest you most? Or would you prefer a more relaxed, spa-focused retreat?`;
-    }
-    
-    if (message.includes('adventure') || message.includes('hiking') || message.includes('mountain') || message.includes('outdoor')) {
-      return `⛰️ Ready for an adrenaline-packed adventure? Here are epic destinations:
-
-**Patagonia (Chile/Argentina)**
-• Trek the famous W Circuit in Torres del Paine
-• Glacier hiking on Perito Moreno
-• Wild camping under starlit skies
-• Wildlife spotting: condors, guanacos, pumas
-
-**Nepal - Himalayan Adventure**
-• Everest Base Camp trek (14 days)
-• Annapurna Circuit with stunning mountain views
-• Cultural immersion in local tea houses
-• Sunrise from Poon Hill viewpoint
-
-**New Zealand - Thrill Seeker's Paradise**
-• Bungee jumping in Queenstown
-• Milford Sound kayaking
-• Skydiving over Lake Taupo
-• Hiking the Routeburn Track
-
-What's your fitness level and how many days would you like to spend on outdoor activities?`;
-    }
-    
-    if (message.includes('food') || message.includes('cuisine') || message.includes('restaurant') || message.includes('culinary')) {
-      return `🍜 A culinary journey around the world! Here are foodie paradise destinations:
-
-**Thailand - Street Food Heaven**
-• Bangkok food tours through Chinatown
-• Cooking classes in Chiang Mai
-• Fresh seafood on Koh Samui beaches
-• Visit floating markets for tropical fruits
-
-**Italy - Authentic Flavors**
-• Pasta making workshops in Tuscany
-• Wine tours through Chianti vineyards
-• Pizza masterclasses in Naples
-• Truffle hunting in Piedmont
-
-**Peru - Ancient & Modern Fusion**
-• Ceviche preparation in Lima
-• Quinoa farming experiences in Sacred Valley
-• Traditional pachamanca earth-oven meals
-• Pisco tasting in Cusco
-
-Would you prefer hands-on cooking experiences, fine dining, or authentic street food adventures?`;
-    }
-    
-    if (message.includes('budget') || message.includes('cheap') || message.includes('affordable')) {
-      return `💰 Amazing travel doesn't have to break the bank! Here are budget-friendly gems:
-
-**Southeast Asia - Incredible Value**
-• Vietnam: $30-40/day including accommodation
-• Cambodia: Temples of Angkor + local cuisine
-• Laos: Peaceful river towns and waterfalls
-• Thailand: Islands, culture, and street food
-
-**Eastern Europe - Rich Culture, Low Cost**
-• Prague: Fairy-tale architecture and cheap beer
-• Budapest: Thermal baths and ruin bars
-• Krakow: Medieval charm and hearty cuisine
-• Sofia: Hidden gem with mountain access
-
-**Money-Saving Tips:**
-• Travel during shoulder seasons (May-June, Sept-Oct)
-• Use local transportation and eat where locals do
-• Stay in hostels or guesthouses
-• Look for free walking tours and city passes
-
-What's your approximate daily budget, and are you comfortable with hostels or prefer private accommodation?`;
-    }
-    
-    // Default responses for general queries
-    const responses = [
-      "That sounds like an amazing trip idea! Could you tell me more about what type of experience you're looking for? Are you interested in cultural immersion, outdoor adventures, relaxation, or perhaps a mix of everything?",
+      const data = await response.json();
       
-      "I'd love to help you plan something special! What's your ideal trip duration, and do you have any specific interests like history, cuisine, nature, or nightlife that I should know about?",
+      // Validate response format
+      if (!Array.isArray(data) || data.length === 0) {
+        throw new Error('Invalid API response format: expected non-empty array');
+      }
+
+      const firstResponse = data[0];
+      if (!firstResponse || typeof firstResponse !== 'object') {
+        throw new Error('Invalid API response format: first element is not an object');
+      }
+
+      if (firstResponse.response_type !== 'message') {
+        throw new Error(`Unsupported response type: ${firstResponse.response_type}`);
+      }
+
+      if (typeof firstResponse.response !== 'string') {
+        throw new Error('Invalid API response format: response field is not a string');
+      }
+
+      return firstResponse.response;
+
+    } catch (error) {
+      console.error('AI API call failed:', error);
       
-      "Exciting! To give you the best recommendations, could you share: your travel dates, group size, budget range, and any must-see destinations or activities on your wishlist?",
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network error: Unable to connect to AI service. Please check your internet connection.');
+      }
       
-      "Perfect! I have so many ideas brewing. Are you looking for a romantic getaway, family adventure, solo journey, or group expedition? And what climate do you prefer - tropical, temperate, or somewhere cooler?",
-    ];
-    
-    return responses[Math.floor(Math.random() * responses.length)];
+      throw error;
+    }
   };
 
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
+    
+    // Check if API is configured
+    if (apiError) {
+      // Show configuration error in chat
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: `I apologize, but I'm currently unable to respond due to a configuration issue: ${apiError}. Please contact support for assistance.`,
+        isUser: false,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -210,18 +151,34 @@ What's your approximate daily budget, and are you comfortable with hostels or pr
     setInputValue('');
     setIsTyping(true);
 
-    // Simulate AI thinking time
-    setTimeout(() => {
+    try {
+      const aiResponseText = await callAIApi(inputValue);
+      
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        content: generateAIResponse(inputValue),
+        content: aiResponseText,
         isUser: false,
         timestamp: new Date(),
       };
       
       setMessages(prev => [...prev, aiResponse]);
+      
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: `I apologize, but I'm having trouble processing your request right now. ${
+          error instanceof Error ? error.message : 'Please try again later.'
+        }`,
+        isUser: false,
+        timestamp: new Date(),
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
