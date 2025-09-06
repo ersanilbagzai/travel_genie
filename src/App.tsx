@@ -3,12 +3,15 @@ import { Compass } from 'lucide-react';
 import AuthPage from './components/AuthPage';
 import Header from './components/Header';
 import Chat from './components/Chat';
+import Itinerary from './components/Itinerary';
 import { authHelpers } from './lib/supabase';
 import type { User as UserProfile } from './lib/supabase';
+import type { ItineraryData } from './components/Itinerary';
 
 function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [itineraryData, setItineraryData] = useState<ItineraryData | null>(null);
   const chatRef = useRef<{ clearConversation: () => void }>(null);
 
   // Check for existing session on app load
@@ -44,6 +47,11 @@ function App() {
 
   const handleNewChat = () => {
     chatRef.current?.clearConversation();
+    setItineraryData(null);
+  };
+
+  const handleItineraryReceived = (itinerary: ItineraryData) => {
+    setItineraryData(itinerary);
   };
 
   // Show loading spinner while checking session
@@ -72,7 +80,18 @@ function App() {
         onSignOut={handleSignOut}
         onNewChat={handleNewChat}
       />
-      <Chat ref={chatRef} user={user} />
+      <div className="flex-1 flex overflow-hidden">
+        <div className="w-1/2">
+          <Chat 
+            ref={chatRef} 
+            user={user} 
+            onItineraryReceived={handleItineraryReceived}
+          />
+        </div>
+        <div className="w-1/2">
+          <Itinerary data={itineraryData} />
+        </div>
+      </div>
     </div>
   );
 }

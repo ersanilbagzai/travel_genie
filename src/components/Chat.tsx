@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, MapPin, Plane, MessageCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { User } from '../lib/supabase';
+import type { ItineraryData } from './Itinerary';
 
 interface Message {
   id: string;
@@ -12,9 +13,10 @@ interface Message {
 
 interface ChatProps {
   user: User | null;
+  onItineraryReceived?: (itinerary: ItineraryData) => void;
 }
 
-const Chat: React.FC<ChatProps> = ({ user }) => {
+const Chat: React.FC<ChatProps> = ({ user, onItineraryReceived }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -115,15 +117,31 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
         throw new Error('Invalid API response format: first element is not an object');
       }
 
-      if (firstResponse.response_type !== 'message') {
+      if (!['message', 'itinerary'].includes(firstResponse.response_type)) {
         throw new Error(`Unsupported response type: ${firstResponse.response_type}`);
       }
 
       if (typeof firstResponse.response !== 'string') {
-        throw new Error('Invalid API response format: response field is not a string');
+        // For itinerary responses, the response might be an object
+        if (firstResponse.response_type === 'itinerary') {
+          try {
+            // If response is a string, try to parse it as JSON
+            if (typeof firstResponse.response === 'string') {
+              return { type: 'itinerary', data: JSON.parse(firstResponse.response) };
+            } else if (typeof firstResponse.response === 'object') {
+              return { type: 'itinerary', data: firstResponse.response };
+            } else {
+              throw new Error('Invalid itinerary response format');
+            }
+          } catch (parseError) {
+            throw new Error('Failed to parse itinerary data');
+          }
+        } else {
+          throw new Error('Invalid API response format: response field is not a string');
+        }
       }
 
-      return firstResponse.response;
+      return { type: 'message', data: firstResponse.response };
 
     } catch (error) {
       console.error('AI API call failed:', error);
@@ -164,16 +182,34 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
     setIsTyping(true);
 
     try {
-      const aiResponseText = await callAIApi(inputValue);
+      const aiResponse = await callAIApi(inputValue);
       
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        content: aiResponseText,
-        isUser: false,
-        timestamp: new Date(),
-      };
-      
-      setMessages(prev => [...prev, aiResponse]);
+      if (aiResponse.type === 'itinerary') {
+        // Handle itinerary response
+        if (onItineraryReceived) {
+          onItineraryReceived(aiResponse.data);
+        }
+        
+        // Add a message to chat indicating itinerary was generated
+        const itineraryMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          content: "I've generated a personalized itinerary for you! Check it out in the itinerary panel on the right. ✈️",
+          isUser: false,
+          timestamp: new Date(),
+        };
+        
+        setMessages(prev => [...prev, itineraryMessage]);
+      } else {
+        // Handle regular message response
+        const messageResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          content: aiResponse.data,
+          isUser: false,
+          timestamp: new Date(),
+        };
+        
+        setMessages(prev => [...prev, messageResponse]);
+      }
       
     } catch (error) {
       console.error('Error getting AI response:', error);
