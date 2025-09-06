@@ -76,11 +76,23 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
       throw new Error('AI agent API URL not configured. Please check system configuration.');
     }
 
+    // Get session ID from Supabase auth
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      throw new Error(`Authentication error: ${sessionError.message}`);
+    }
+    
+    if (!session || !session.access_token) {
+      throw new Error('No valid session found. Please sign in again.');
+    }
+
     try {
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'sessionid': session.access_token,
         },
         body: JSON.stringify({
           message: userMessage
