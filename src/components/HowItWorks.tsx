@@ -18,7 +18,7 @@ const HowItWorks: React.FC = () => {
           </div>
           <div className="hidden md:block">
             <img 
-              src="src/assets/images/how_it_works.png" 
+              src={howItWorksImage} 
               alt="Happy traveler" 
               className="rounded-2xl shadow-xl"
               width="600"
