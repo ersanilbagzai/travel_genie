@@ -151,7 +151,7 @@ const Chat: React.FC<ChatProps> = ({ user, onItineraryReceived }) => {
         }
       }
       
-      return { type: 'message', data: firstResponse.response };</antmlAction>
+      return { type: 'message', data: firstResponse.response };
 
     } catch (error) {
       console.error('AI API call failed:', error);
