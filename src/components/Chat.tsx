@@ -74,6 +74,7 @@ const Chat: React.FC<ChatProps> = ({ user, onItineraryReceived }) => {
   }, [messages]);
 
   const callAIApi = async (userMessage: string): Promise<string> => {
+  const callAIApi = async (userMessage: string): Promise<{ type: 'message' | 'itinerary', data: string | ItineraryData }> => {
     if (!apiUrl) {
       throw new Error('AI agent API URL not configured. Please check system configuration.');
     }
@@ -122,32 +123,22 @@ const Chat: React.FC<ChatProps> = ({ user, onItineraryReceived }) => {
       }
 
       if (typeof firstResponse.response !== 'string') {
-        // For itinerary responses, the response might be an object
-        if (firstResponse.response_type === 'itinerary') {
-          try {
-            // If response is a string, try to parse it as JSON
-            if (typeof firstResponse.response === 'string') {
-              return { type: 'itinerary', data: JSON.parse(firstResponse.response) };
-            } else if (typeof firstResponse.response === 'object') {
-              return { type: 'itinerary', data: firstResponse.response };
-            } else {
-              throw new Error('Invalid itinerary response format');
-            }
-          } catch (parseError) {
-            throw new Error('Failed to parse itinerary data');
-          }
-        } else {
-          throw new Error('Invalid API response format: response field is not a string');
+        // If response is not a string, it might be an object for itinerary type
+        if (firstResponse.response_type === 'itinerary' && typeof firstResponse.response === 'object') {
+          return { type: 'itinerary', data: firstResponse.response };
         }
+        throw new Error('Invalid API response format: response field is neither string nor object');
       }
 
+      // Handle responses where response is a string
       if (firstResponse.response_type === 'itinerary') {
-        // Handle itinerary response where response is a string (JSON)
         try {
           const itineraryData = JSON.parse(firstResponse.response);
           return { type: 'itinerary', data: itineraryData };
         } catch (parseError) {
-          throw new Error('Failed to parse itinerary data');
+          // If JSON parsing fails, treat it as a regular message
+          console.warn('Failed to parse itinerary JSON, treating as message:', parseError);
+          return { type: 'message', data: firstResponse.response };
         }
       }
       
@@ -194,7 +185,7 @@ const Chat: React.FC<ChatProps> = ({ user, onItineraryReceived }) => {
     try {
       const aiResponse = await callAIApi(inputValue);
       
-      if (aiResponse.type === 'itinerary') {
+      if (aiResponse && typeof aiResponse === 'object' && aiResponse.type === 'itinerary') {
         // Handle itinerary response
         if (onItineraryReceived) {
           onItineraryReceived(aiResponse.data);
@@ -213,7 +204,7 @@ const Chat: React.FC<ChatProps> = ({ user, onItineraryReceived }) => {
         // Handle regular message response
         const messageResponse: Message = {
           id: (Date.now() + 1).toString(),
-          content: aiResponse.data,
+          content: typeof aiResponse === 'string' ? aiResponse : aiResponse.data,
           isUser: false,
           timestamp: new Date(),
         };
