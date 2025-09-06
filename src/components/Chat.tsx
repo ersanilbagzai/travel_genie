@@ -73,7 +73,6 @@ const Chat: React.FC<ChatProps> = ({ user, onItineraryReceived }) => {
     scrollToBottom();
   }, [messages]);
 
-  const callAIApi = async (userMessage: string): Promise<string> => {
   const callAIApi = async (userMessage: string): Promise<{ type: 'message' | 'itinerary', data: string | ItineraryData }> => {
     if (!apiUrl) {
       throw new Error('AI agent API URL not configured. Please check system configuration.');
