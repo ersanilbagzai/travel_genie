@@ -4,6 +4,27 @@ import { supabase } from '../lib/supabase';
 import type { User } from '../lib/supabase';
 import type { ItineraryData } from './Itinerary';
 
+function parseSimpleItinerary(text: string): ItineraryData {
+  const lines = text.split('\n').filter(line => line.trim() !== '');
+  const description = lines.shift() || '';
+  
+  const days = lines.map((line, index) => {
+    const dayMatch = line.match(/^Day (\d+):/);
+    const activityText = dayMatch ? line.substring(dayMatch[0].length).trim() : line;
+    return {
+      day: dayMatch ? parseInt(dayMatch[1]) : index + 1,
+      title: dayMatch ? `Day ${dayMatch[1]}` : `Step ${index + 1}`,
+      activities: [{ activity: activityText }]
+    }
+  });
+
+  return {
+    title: 'Your Itinerary',
+    description: description,
+    days: days
+  }
+}
+
 interface Message {
   id: string;
   content: string;
@@ -135,9 +156,12 @@ const Chat: React.FC<ChatProps> = ({ user, onItineraryReceived }) => {
           const itineraryData = JSON.parse(firstResponse.response);
           return { type: 'itinerary', data: itineraryData };
         } catch (parseError) {
-          // If JSON parsing fails, treat it as a regular message
-          console.warn('Failed to parse itinerary JSON, treating as message:', parseError);
-          return { type: 'message', data: firstResponse.response };
+          if (typeof firstResponse.response === 'string') {
+            const parsedData = parseSimpleItinerary(firstResponse.response);
+            return { type: 'itinerary', data: parsedData };
+          }
+          console.error('Failed to parse itinerary:', parseError);
+          throw new Error("I received an itinerary, but it was in a format I couldn't understand.");
         }
       }
       
@@ -155,14 +179,14 @@ const Chat: React.FC<ChatProps> = ({ user, onItineraryReceived }) => {
   };
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim()) return; 
     
     // Check if API is configured
     if (apiError) {
       // Show configuration error in chat
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: `I apologize, but I'm currently unable to respond due to a configuration issue: ${apiError}. Please contact support for assistance.`,
+        content: `I apologize, but I'm currently unable to respond due to a configuration issue: ${apiError}. Please contact support for assistance.`, 
         isUser: false,
         timestamp: new Date(),
       };
@@ -216,8 +240,8 @@ const Chat: React.FC<ChatProps> = ({ user, onItineraryReceived }) => {
       
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: `I apologize, but I'm having trouble processing your request right now. ${
-          error instanceof Error ? error.message : 'Please try again later.'
+        content: `I apologize, but I'm having trouble processing your request right now. ${ 
+          error instanceof Error ? error.message : 'Please try again later.' 
         }`,
         isUser: false,
         timestamp: new Date(),
@@ -267,7 +291,7 @@ const Chat: React.FC<ChatProps> = ({ user, onItineraryReceived }) => {
             >
               <div className={`max-w-xs sm:max-w-md lg:max-w-2xl ${
                 message.isUser 
-                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl rounded-br-md' 
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-2xl rounded-br-md'
                   : 'bg-white/80 backdrop-blur-sm text-gray-800 rounded-2xl rounded-bl-md shadow-sm border border-gray-200/50'
               } px-4 py-3 relative`}>
                 {!message.isUser && (
