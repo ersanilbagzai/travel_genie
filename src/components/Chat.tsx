@@ -8,21 +8,26 @@ function parseSimpleItinerary(text: string): ItineraryData {
   const lines = text.split('\n').filter(line => line.trim() !== '');
   const description = lines.shift() || '';
   
-  const days = lines.map((line, index) => {
-    const dayMatch = line.match(/^Day (\d+):/);
-    const activityText = dayMatch ? line.substring(dayMatch[0].length).trim() : line;
-    return {
-      day: dayMatch ? parseInt(dayMatch[1]) : index + 1,
-      title: dayMatch ? `Day ${dayMatch[1]}` : `Step ${index + 1}`,
-      activities: [{ activity: activityText }]
-    }
-  });
+  const days = lines
+    .map((line) => {
+      const dayMatch = line.match(/^Day (\d+):/);
+      if (dayMatch) {
+        const activityText = line.substring(dayMatch[0].length).trim();
+        return {
+          day: parseInt(dayMatch[1]),
+          title: `Day ${dayMatch[1]}`, 
+          activities: [{ activity: activityText }]
+        };
+      }
+      return null;
+    })
+    .filter((day): day is NonNullable<typeof day> => day !== null);
 
   return {
     title: 'Your Itinerary',
     description: description,
     days: days
-  }
+  };
 }
 
 interface Message {
