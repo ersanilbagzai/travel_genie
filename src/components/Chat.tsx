@@ -141,7 +141,17 @@ const Chat: React.FC<ChatProps> = ({ user, onItineraryReceived }) => {
         }
       }
 
-      return { type: 'message', data: firstResponse.response };
+      if (firstResponse.response_type === 'itinerary') {
+        // Handle itinerary response where response is a string (JSON)
+        try {
+          const itineraryData = JSON.parse(firstResponse.response);
+          return { type: 'itinerary', data: itineraryData };
+        } catch (parseError) {
+          throw new Error('Failed to parse itinerary data');
+        }
+      }
+      
+      return { type: 'message', data: firstResponse.response };</antmlAction>
 
     } catch (error) {
       console.error('AI API call failed:', error);
